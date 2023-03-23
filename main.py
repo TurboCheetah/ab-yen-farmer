@@ -11,10 +11,34 @@ class Scraper:
         self.base_url = base_url
         self.cookies = self.parse_cookies(cookies)
 
-    def parse_cookies(self, cookies):
+    @staticmethod
+    def parse_cookies(cookies):
         return {
             name: value for name, value in [cookie.split("=") for cookie in cookies]
         }
+
+    @staticmethod
+    def print_progress_bar(
+        iteration, total, prefix="", suffix="", decimals=1, length=50, fill="#"
+    ):
+        """
+        iteration - current iteration (Int)
+        total - total iterations (Int)
+        prefix - prefix string (Str)
+        suffix - suffix string (Str)
+        decimals - positive number of decimals in percent complete (Int)
+        length - character length of bar (Int)
+        fill - bar fill character (Str)
+        """
+        percent = ("{0:." + str(decimals) + "f}").format(
+            100 * (iteration / float(total))
+        )
+        filled_length = int(length * iteration // total)
+        bar = fill * filled_length + "-" * (length - filled_length)
+        print(f"\r{prefix} |{bar}| {percent}% {suffix}", end="\r")
+        # Print New Line on Complete
+        if iteration == total:
+            print()
 
     def scrape_links(self, page_number):
         url = self.base_url + str(page_number)
@@ -100,8 +124,14 @@ if __name__ == "__main__":
     for page_number in range(1, args.total_pages + 1):
         page_links = scraper.scrape_links(page_number)
         all_links.extend(page_links)
-        print(f"Scraped {len(page_links)} links from page {page_number}")
-        sleep(args.ratelimit)
+        scraper.print_progress_bar(
+            page_number,
+            args.total_pages,
+            prefix=f"Page {page_number}/{args.total_pages}:",
+        )
+
+        if page_number != args.total_pages:
+            sleep(args.ratelimit)
 
     os.makedirs("output", exist_ok=True)
     filename = args.user if args.mode == "user" else args.section
