@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import os
 import re
 from time import sleep
 
@@ -6,10 +7,8 @@ import requests
 
 
 class Scraper:
-    def __init__(self, user_id, section, cookies):
-        self.user_id = user_id
-        self.section = section
-        self.base_url = f"https://animebytes.tv/alltorrents.php?userid={self.user_id}&type=seeding&order_by=size&order_way=ASC&section={self.section}&page="
+    def __init__(self, base_url, cookies):
+        self.base_url = base_url
         self.cookies = self.parse_cookies(cookies)
 
     def parse_cookies(self, cookies):
@@ -47,19 +46,55 @@ if __name__ == "__main__":
         default=5,
         type=int,
     )
-    parser.add_argument("user_id", help="The user ID url to scrape, e.g. 12345")
-    parser.add_argument("section", help="The section to scrape, e.g. anime or music")
+    parser.add_argument(
+        "-m",
+        "--mode",
+        help="The mode to use. Can be either 'user' or 'site",
+        choices=["user", "site"],
+        required=True,
+    )
+    parser.add_argument("-u", "--user", help="The user ID url to scrape, e.g. 12345")
+    parser.add_argument(
+        "-s",
+        "--section",
+        help="The section to scrape. In the case of user mode, can only be either anime or music",
+        choices=["anime", "music", "printed", "games"],
+        required=True,
+    )
     parser.add_argument(
         "total_pages", help="The max number of pages to scrape", type=int
     )
 
     args = parser.parse_args()
 
-    # Parse cookies from the file passed into args.cookies
+    if args.total_pages < 1:
+        parser.error("Total pages must be greater than 0")
+
+    if args.mode == "user" and not args.user:
+        parser.error("User mode requires a user ID, set one with -u or --user")
+
     with open(args.cookies, "r") as f:
         cookies = f.read().strip().split(";")
 
-    scraper = Scraper(args.user_id, args.section, cookies)
+    if args.mode == "user":
+        base_url = f"https://animebytes.tv/alltorrents.php?userid={args.user}&type=seeding&order_by=size&order_way=ASC&section={args.section}&page="
+    elif args.mode == "site":
+        section_urls = {
+            "music": "https://animebytes.tv/torrents2.php?filter_cat%5B1%5D=1&sort=size&way=asc&showhidden=0&page=",
+            "anime": "https://animebytes.tv/torrents.php?filter_cat%5B1%5D=1&action=advanced&search_type=title&sort=size&way=asc&hentai=2&showhidden=0&page=",
+            "printed": "https://animebytes.tv/torrents.php?filter_cat%5B2%5D=1&action=advanced&search_type=title&sort=size&way=asc&hentai=2&showhidden=0&page=",
+            "games": "https://animebytes.tv/torrents.php?filter_cat%5B3%5D=1&action=advanced&search_type=title&sort=size&way=asc&hentai=2&showhidden=0&page=",
+        }
+        base_url = section_urls.get(args.section)
+
+        if base_url is None:
+            parser.error(
+                "Invalid section, valid choices are 'music', 'anime', 'printed', and 'games'"
+            )
+    else:
+        parser.error("Invalid mode")
+
+    scraper = Scraper(base_url, cookies)
 
     all_links = []
     for page_number in range(1, args.total_pages + 1):
@@ -68,7 +103,7 @@ if __name__ == "__main__":
         print(f"Scraped {len(page_links)} links from page {page_number}")
         sleep(args.ratelimit)
 
-    # Save the links to a file
-    with open("links.txt", "w") as f:
-        for link in all_links:
-            f.write(link + "\n")
+    os.makedirs("output", exist_ok=True)
+    filename = args.user if args.mode == "user" else args.section
+    with open(f"output/{filename}.txt", "w") as f:
+        f.write("\n".join(all_links))

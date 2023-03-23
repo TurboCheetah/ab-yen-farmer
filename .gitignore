@@ -129,4 +129,4 @@ dmypy.json
 .pyre/
 
 cookies.txt
-links.txt
+output/*
