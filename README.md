@@ -4,12 +4,13 @@ Scripts to scrape torrents from AnimeBytes, either from a user's profile or from
 
 ## Usage
 
-You must put your session cookie into a file called `cookies.txt` in the following format: `session=...`
+Make sure that you have [Poetry](https://python-poetry.org/docs/#installation) installed.
+You must copy `config.example.toml` to `config.toml` and enter a valid cookie.
 
 ### Scrape from a user's profile
 
 ```bash
-./main.py -m user -u <user id> -s <section> <pages>
+poetry run farm -m user -u <user id> -s <section> <pages>
 ```
 
 ### Scrape from the entire site
@@ -18,5 +19,5 @@ Due to the way in which AnimeBytes groups torrents, scraping the entire site, ev
 For example, if a group contains a 2MB torrent and a 2GB torrent, both links will be saved.
 
 ```bash
-./main.py -m site -s <section> <pages>
+poetry run farm -m site -s <section> <pages>
 ```

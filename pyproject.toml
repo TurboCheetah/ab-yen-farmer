@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "ab-yen-farmer"
+version = "1.1.1"
+description = "Scrapes AB for small torrents to farm yen"
+authors = ["Turbo <dev@turbo.ooo>"]
+license = "MIT"
+readme = "README.md"
+packages = [{ include = "ab_yen_farmer" }]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+requests = "^2.28.2"
+tqdm = "^4.65.0"
+
+[tool.poetry.scripts]
+farm = 'ab_yen_farmer.main:main'
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

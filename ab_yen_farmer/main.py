@@ -1,48 +1,20 @@
-#!/usr/bin/env python3
 import os
 import re
+import tomllib
 from time import sleep
 
 import requests
+from tqdm import tqdm
 
 
 class Scraper:
-    def __init__(self, base_url, cookies):
+    def __init__(self, base_url, cookie):
         self.base_url = base_url
-        self.cookies = self.parse_cookies(cookies)
-
-    @staticmethod
-    def parse_cookies(cookies):
-        return {
-            name: value for name, value in [cookie.split("=") for cookie in cookies]
-        }
-
-    @staticmethod
-    def print_progress_bar(
-        iteration, total, prefix="", suffix="", decimals=1, length=50, fill="#"
-    ):
-        """
-        iteration - current iteration (Int)
-        total - total iterations (Int)
-        prefix - prefix string (Str)
-        suffix - suffix string (Str)
-        decimals - positive number of decimals in percent complete (Int)
-        length - character length of bar (Int)
-        fill - bar fill character (Str)
-        """
-        percent = ("{0:." + str(decimals) + "f}").format(
-            100 * (iteration / float(total))
-        )
-        filled_length = int(length * iteration // total)
-        bar = fill * filled_length + "-" * (length - filled_length)
-        print(f"\r{prefix} |{bar}| {percent}% {suffix}", end="\r")
-        # Print New Line on Complete
-        if iteration == total:
-            print()
+        self.cookie = cookie
 
     def scrape_links(self, page_number):
         url = self.base_url + str(page_number)
-        response = requests.get(url, cookies=self.cookies)
+        response = requests.get(url, cookies=self.cookie)
 
         if response.status_code == 200:
             pattern = re.compile(r"/torrent/\d*/download/[^\"]*")
@@ -53,16 +25,10 @@ class Scraper:
             return []
 
 
-if __name__ == "__main__":
+def main():
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "-c",
-        "--cookies",
-        help="The cookie file to use",
-        default="cookies.txt",
-    )
     parser.add_argument(
         "-r",
         "--ratelimit",
@@ -97,8 +63,12 @@ if __name__ == "__main__":
     if args.mode == "user" and not args.user:
         parser.error("User mode requires a user ID, set one with -u or --user")
 
-    with open(args.cookies, "r") as f:
-        cookies = f.read().strip().split(";")
+    with open("config.toml", "rb") as f:
+        config = tomllib.load(f)
+        cookie = config.get("cookie")
+        if not cookie:
+            parser.error("No cookie found in config.toml")
+        cookie = {cookie.split("=")[0]: cookie.split("=")[1]}
 
     if args.mode == "user":
         base_url = f"https://animebytes.tv/alltorrents.php?userid={args.user}&type=seeding&order_by=size&order_way=ASC&section={args.section}&page="
@@ -118,22 +88,36 @@ if __name__ == "__main__":
     else:
         parser.error("Invalid mode")
 
-    scraper = Scraper(base_url, cookies)
+    scraper = Scraper(base_url, cookie)
+
+    os.makedirs("output", exist_ok=True)
+    filename = args.user if args.mode == "user" else args.section
+    output_path = f"output/{filename}.txt"
+
+    # Check if the output file exists and read the existing links into a set
+    existing_links = set()
+    if os.path.exists(output_path):
+        with open(output_path, "r") as f:
+            existing_links = set(f.read().splitlines())
 
     all_links = []
-    for page_number in range(1, args.total_pages + 1):
+    for page_number in tqdm(
+        range(1, args.total_pages + 1),
+        bar_format="Page {n}/{total} {bar} {percentage:0.1f}%",
+    ):
         page_links = scraper.scrape_links(page_number)
-        all_links.extend(page_links)
-        scraper.print_progress_bar(
-            page_number,
-            args.total_pages,
-            prefix=f"Page {page_number}/{args.total_pages}:",
-        )
+        # Check if each link exists in the output file and if not, add it to the set
+        # and write it to the output file
+        with open(output_path, "a") as f:
+            for link in page_links:
+                if link not in existing_links:
+                    all_links.append(link)
+                    existing_links.add(link)
+                    f.write(f"{link}\n")
 
         if page_number != args.total_pages:
             sleep(args.ratelimit)
 
-    os.makedirs("output", exist_ok=True)
-    filename = args.user if args.mode == "user" else args.section
-    with open(f"output/{filename}.txt", "w") as f:
-        f.write("\n".join(all_links))
+
+if __name__ == "__main__":
+    main()
